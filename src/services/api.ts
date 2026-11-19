@@ -12,15 +12,57 @@ import {
   responseErrorMiddleware,
 } from '../middleware/apiMiddleware';
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+/**
+ * Returns the active Backend API URL.
+ * Priority:
+ * 1. URL Query parameter: ?api=http://... (saves automatically to localStorage)
+ * 2. LocalStorage override: CLOUDDROP_API_URL
+ * 3. Build-time environment variable: VITE_API_URL
+ */
+export function getApiBase(): string {
+  if (typeof window !== 'undefined') {
+    // 1. Check URL query param ?api=http://... (for instant testing or demo links without rebuild)
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryApi = urlParams.get('api');
+    if (queryApi) {
+      const cleanUrl = queryApi.trim().replace(/\/+$/, '');
+      localStorage.setItem('CLOUDDROP_API_URL', cleanUrl);
+      return cleanUrl;
+    }
+
+    // 2. Check localStorage override
+    const saved = localStorage.getItem('CLOUDDROP_API_URL');
+    if (saved) {
+      return saved.trim().replace(/\/+$/, '');
+    }
+  }
+
+  // 3. Fallback to build-time Vite env variable
+  return (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+}
+
+/**
+ * Sets a custom backend EC2 IP or URL on the fly, with zero Amplify rebuild required!
+ */
+export function setCustomApiUrl(url: string | null): void {
+  if (url && url.trim()) {
+    localStorage.setItem('CLOUDDROP_API_URL', url.trim().replace(/\/+$/, ''));
+  } else {
+    localStorage.removeItem('CLOUDDROP_API_URL');
+  }
+  window.location.reload();
+}
 
 const client = axios.create({
-  baseURL: API_BASE,
   timeout: 60000, // 60s timeout
 });
 
-// Attach Request and Response Middleware
-client.interceptors.request.use(requestMiddleware, (err) => Promise.reject(err));
+// Dynamic baseURL interceptor so changed EC2 IPs apply immediately
+client.interceptors.request.use((config) => {
+  config.baseURL = getApiBase();
+  return requestMiddleware(config);
+}, (err) => Promise.reject(err));
+
 client.interceptors.response.use(responseSuccessMiddleware, responseErrorMiddleware);
 
 export const api = {
@@ -155,14 +197,14 @@ export const api = {
    * Helper to construct backend direct instant download link: GET /d/:fileId
    */
   getDirectDownloadUrl(fileId: string): string {
-    return `${API_BASE}/d/${fileId}`;
+    return `${getApiBase()}/d/${fileId}`;
   },
 
   /**
    * Helper to construct backend direct media stream/view link: GET /f/:fileId
    */
   getPreviewUrl(fileId: string): string {
-    return `${API_BASE}/f/${fileId}`;
+    return `${getApiBase()}/f/${fileId}`;
   },
 
   /**
