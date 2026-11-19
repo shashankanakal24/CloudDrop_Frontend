@@ -3,8 +3,9 @@ frontend:
   phases:
     preBuild:
       commands:
-        - env | grep -e VITE_ >> .env.production
-        - npm ci
+        - nvm use 20 || true
+        - env | grep -e VITE_ >> .env.production || true
+        - npm install
     build:
       commands:
         - npm run build
