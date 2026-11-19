@@ -8,6 +8,10 @@ import {
   Clock,
   ChevronDown,
   Check,
+  Eye,
+  Download,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -39,6 +43,14 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(
     null,
   );
+  const [lastUploaded, setLastUploaded] = useState<{
+    fileId: string;
+    fileName: string;
+    previewUrl: string;
+    downloadUrl: string;
+    shareUrl: string;
+  } | null>(null);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -58,6 +70,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
       setStatusMessage(null);
+      setLastUploaded(null);
     }
   };
 
@@ -66,6 +79,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       setFile(e.dataTransfer.files[0]);
       setStatusMessage(null);
+      setLastUploaded(null);
     }
   };
 
@@ -76,27 +90,51 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
       setIsUploading(true);
       setUploadProgress(0);
       setStatusMessage(null);
+      setLastUploaded(null);
 
-      // 1. Request secure upload ticket
-      const session = await api.requestUpload(
-        file.name,
-        file.type || 'application/octet-stream',
-        file.size,
-        selectedExpiry.hours,
-        [],
-      );
+      let fileId = '';
+      const originalName = file.name;
 
-      // 2. Direct high-speed upload with progress tracking
-      await api.uploadDirectToS3(session.uploadUrl, file, (progress) => {
-        setUploadProgress(progress);
+      try {
+        // Attempt Direct S3 Pre-signed Upload
+        const session = await api.requestUpload(
+          file.name,
+          file.type || 'application/octet-stream',
+          file.size,
+          selectedExpiry.hours,
+          [],
+        );
+
+        await api.uploadDirectToS3(session.uploadUrl, file, (progress) => {
+          setUploadProgress(progress);
+        });
+
+        await api.confirmUpload(session.fileId);
+        fileId = session.fileId;
+      } catch (directErr) {
+        console.warn('Direct S3 upload fallback to multipart endpoint:', directErr);
+        // Fallback: multipart direct upload through backend reverse proxy
+        const res = await api.uploadMultipartDirect(file, selectedExpiry.hours, (progress) => {
+          setUploadProgress(progress);
+        });
+        fileId = res.fileId;
+      }
+
+      const previewUrl = api.getPreviewUrl(fileId);
+      const downloadUrl = api.getDirectDownloadUrl(fileId);
+      const shareUrl = api.getShareablePageUrl(fileId);
+
+      setLastUploaded({
+        fileId,
+        fileName: originalName,
+        previewUrl,
+        downloadUrl,
+        shareUrl,
       });
-
-      // 3. Confirm completion
-      await api.confirmUpload(session.fileId);
 
       setStatusMessage({
         type: 'success',
-        text: `"${file.name}" uploaded successfully! Ready for secure sharing.`,
+        text: `"${originalName}" uploaded and secured in Amazon S3!`,
       });
 
       setFile(null);
@@ -113,8 +151,18 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
     }
   };
 
+  const handleCopyShare = async () => {
+    if (!lastUploaded) return;
+    try {
+      await navigator.clipboard.writeText(lastUploaded.shareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      alert('Failed to copy share link.');
+    }
+  };
+
   return (
-    /* Notice: relative z-30 ensures this card and its floating dropdown float ABOVE the card below */
     <div className="relative z-30 bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-xl shadow-black/20 mb-8 backdrop-blur-sm">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2.5">
@@ -226,7 +274,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
       {isUploading && (
         <div className="mt-5">
           <div className="flex justify-between mb-1.5 text-xs text-slate-400">
-            <span>Encrypting and uploading securely...</span>
+            <span>Encrypting and uploading securely to S3...</span>
             <span className="font-medium text-blue-400">{uploadProgress}%</span>
           </div>
           <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -238,20 +286,54 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
         </div>
       )}
 
-      {/* Status Message */}
-      {statusMessage && (
-        <div
-          className={`mt-5 p-3.5 rounded-xl flex items-center gap-2.5 text-sm border ${
-            statusMessage.type === 'success'
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-              : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-          }`}
-        >
-          {statusMessage.type === 'success' ? (
-            <CheckCircle2 size={18} className="shrink-0" />
-          ) : (
-            <AlertCircle size={18} className="shrink-0" />
-          )}
+      {/* Success Box with Preview, Download, and Share Actions */}
+      {lastUploaded && (
+        <div className="mt-6 p-4 rounded-xl bg-slate-950/80 border border-emerald-500/30">
+          <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm mb-2">
+            <CheckCircle2 size={17} />
+            <span>File Ready! Choose an action:</span>
+          </div>
+          <div className="text-xs text-slate-400 mb-3 truncate">
+            {lastUploaded.fileName}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* 1. Preview button */}
+            <a
+              href={lastUploaded.previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-medium transition-colors"
+            >
+              <Eye size={14} />
+              <span>Preview in Browser</span>
+              <ExternalLink size={11} className="text-blue-400/70" />
+            </a>
+
+            {/* 2. Direct Download button */}
+            <a
+              href={lastUploaded.downloadUrl}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors"
+            >
+              <Download size={14} />
+              <span>Direct Download</span>
+            </a>
+
+            {/* 3. Copy Share Link */}
+            <button
+              onClick={handleCopyShare}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition-colors"
+            >
+              {copiedLink ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+              <span>{copiedLink ? 'Link Copied!' : 'Copy Share Link'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Error Status Message */}
+      {statusMessage && statusMessage.type === 'error' && (
+        <div className="mt-5 p-3.5 rounded-xl flex items-center gap-2.5 text-sm border bg-rose-500/10 text-rose-400 border-rose-500/30">
+          <AlertCircle size={18} className="shrink-0" />
           <span>{statusMessage.text}</span>
         </div>
       )}
