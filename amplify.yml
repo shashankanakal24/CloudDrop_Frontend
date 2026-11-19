@@ -4,7 +4,8 @@ frontend:
     preBuild:
       commands:
         - nvm use 20 || true
-        - env | grep -e VITE_ >> .env.production || true
+        - touch .env.production
+        - env | grep -E '^VITE_' >> .env.production || true
         - npm install
     build:
       commands:
