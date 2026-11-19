@@ -6,7 +6,7 @@ export interface FileRecord {
   sizeBytes: number;
   status: 'PENDING' | 'PROCESSING' | 'READY' | 'EXPIRED';
   uploadedAt: string;
-  expiresAt: number;
+  expiresAt: number; // Unix epoch seconds
   downloadCount: number;
   tags?: string[];
   processedMetadata?: {
@@ -23,11 +23,39 @@ export interface UploadSessionResponse {
   expiresAt: string;
 }
 
+export interface DirectUploadResponse {
+  message: string;
+  downloadLink: string;
+  previewLink: string;
+  fileId: string;
+  originalName: string;
+  sizeBytes: number;
+  mimeType: string;
+  status: 'READY';
+  expiryHours: number;
+  expiresAt: string;
+}
+
 export interface DownloadUrlResponse {
   fileId: string;
   originalName: string;
+  mimeType?: string;
+  mediaUrl?: string;
+  directDownloadUrl?: string;
   downloadUrl: string;
   downloadCount: number;
   expiresInSeconds: number;
 }
 
+export interface HealthResponse {
+  status: string;
+  service: string;
+  uptime?: number;
+  timestamp: string;
+}
+
+export interface ApiError {
+  statusCode: number;
+  message: string;
+  error?: string;
+}

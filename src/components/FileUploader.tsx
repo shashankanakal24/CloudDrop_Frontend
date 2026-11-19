@@ -185,9 +185,9 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
             />
           </button>
 
-          {/* 100% solid, opaque background (bg-[#121a2d]) with high z-index and shadow so it never merges */}
+          {/* 100% solid, fully opaque background (bg-[#0f172a]) with high z-50 and shadow so it never merges or bleeds */}
           {isDropdownOpen && (
-            <div className="absolute top-full mt-2 left-0 right-0 bg-[#121a2d] border border-slate-700 rounded-xl shadow-2xl shadow-black z-50 overflow-hidden animate-dropdown divide-y divide-slate-800 ring-1 ring-slate-700/50">
+            <div className="absolute top-full mt-2 left-0 right-0 bg-[#0f172a] border border-slate-700 rounded-xl shadow-[0_20px_50px_rgba(0,0,0,0.95)] z-50 overflow-hidden animate-dropdown divide-y divide-slate-800 ring-1 ring-slate-700/60">
               {EXPIRY_OPTIONS.map((option) => (
                 <div
                   key={option.hours}
