@@ -13,32 +13,66 @@ import {
 } from '../middleware/apiMiddleware';
 
 /**
- * Returns the active Backend API URL.
+ * Normalizes any backend URL entered by the user or from environment variables:
+ * - Prepends 'http://' if the protocol was omitted (e.g. '3.87.212.178' -> 'http://3.87.212.178')
+ * - Strips trailing slashes
+ * - Strips trailing '/api' to avoid duplicate '/api/api/...' paths with API routes
+ */
+export function normalizeApiUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
+  let url = rawUrl.trim();
+
+  // If user passed host or IP without protocol, prepend http://
+  // (Prevents browser from treating '3.87.212.178' as a relative path on the Amplify domain!)
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = `http://${url}`;
+  }
+
+  // Remove trailing slashes
+  url = url.replace(/\/+$/, '');
+
+  // If URL ends with /api, remove it since endpoints in api.ts already include /api/...
+  url = url.replace(/\/api$/, '');
+
+  return url;
+}
+
+/**
+ * Returns the active Backend API URL directly from the environment file (.env).
  * Priority:
- * 1. URL Query parameter: ?api=http://... (saves automatically to localStorage)
- * 2. LocalStorage override: CLOUDDROP_API_URL
- * 3. Build-time environment variable: VITE_API_URL
+ * 1. Build-time environment variable: VITE_API_URL (from .env or Amplify console)
+ * 2. URL Query parameter: ?api=http://... (for quick testing/overrides)
+ * 3. LocalStorage override: CLOUDDROP_API_URL
  */
 export function getApiBase(): string {
+  // 1. Primary: Return base URL directly from VITE_API_URL (.env)
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && envUrl.trim()) {
+    return normalizeApiUrl(envUrl);
+  }
+
   if (typeof window !== 'undefined') {
-    // 1. Check URL query param ?api=http://... (for instant testing or demo links without rebuild)
+    // 2. Check URL query param ?api=... (for manual override or testing)
     const urlParams = new URLSearchParams(window.location.search);
     const queryApi = urlParams.get('api');
     if (queryApi) {
-      const cleanUrl = queryApi.trim().replace(/\/+$/, '');
+      const cleanUrl = normalizeApiUrl(queryApi);
       localStorage.setItem('CLOUDDROP_API_URL', cleanUrl);
       return cleanUrl;
     }
 
-    // 2. Check localStorage override
+    // 3. Check localStorage override
     const saved = localStorage.getItem('CLOUDDROP_API_URL');
-    if (saved) {
-      return saved.trim().replace(/\/+$/, '');
+    if (saved && saved.trim()) {
+      const normalizedSaved = normalizeApiUrl(saved);
+      if (normalizedSaved !== saved) {
+        localStorage.setItem('CLOUDDROP_API_URL', normalizedSaved);
+      }
+      return normalizedSaved;
     }
   }
 
-  // 3. Fallback to build-time Vite env variable
-  return (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+  return '';
 }
 
 /**
@@ -46,7 +80,7 @@ export function getApiBase(): string {
  */
 export function setCustomApiUrl(url: string | null): void {
   if (url && url.trim()) {
-    localStorage.setItem('CLOUDDROP_API_URL', url.trim().replace(/\/+$/, ''));
+    localStorage.setItem('CLOUDDROP_API_URL', normalizeApiUrl(url));
   } else {
     localStorage.removeItem('CLOUDDROP_API_URL');
   }
