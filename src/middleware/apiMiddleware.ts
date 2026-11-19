@@ -7,11 +7,6 @@ import { ApiError } from '../types';
  * and record request start timestamps for latency tracking.
  */
 export function requestMiddleware(config: InternalAxiosRequestConfig): InternalAxiosRequestConfig {
-  // Attach custom headers or client trace ID
-  config.headers = config.headers || {};
-  config.headers['X-Client-Timestamp'] = new Date().toISOString();
-  config.headers['X-Client-Platform'] = 'CloudDrop-Web';
-
   // Attach metadata for performance measurement
   (config as any).metadata = { startTime: performance.now() };
 
