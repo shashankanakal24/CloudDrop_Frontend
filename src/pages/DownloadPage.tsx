@@ -91,23 +91,11 @@ export const DownloadPage: React.FC = () => {
     return <FileGeneric size={44} className="text-blue-400" />;
   };
 
-  const handleDownload = async () => {
+  const handleDownload = () => {
     if (!fileId) return;
-
-    try {
-      setIsDownloading(true);
-      // Fetch fresh pre-signed GET URL from backend
-      const res = await api.getDownloadUrl(fileId, true);
-      window.location.href = res.downloadUrl;
-
-      // Update local download counter visually
-      setFile((prev) => (prev ? { ...prev, downloadCount: (prev.downloadCount || 0) + 1 } : null));
-    } catch (err: any) {
-      console.error('Download failed:', err);
-      alert('Unable to initiate download. The file transfer link may have expired.');
-    } finally {
-      setIsDownloading(false);
-    }
+    // Direct download through backend /d/:fileId which generates S3 URL and redirects
+    window.location.href = api.getDirectDownloadUrl(fileId);
+    setFile((prev) => (prev ? { ...prev, downloadCount: (prev.downloadCount || 0) + 1 } : null));
   };
 
   const handleCopyLink = async () => {
@@ -121,10 +109,27 @@ export const DownloadPage: React.FC = () => {
     }
   };
 
-  const isMediaViewable = file?.mimeType?.startsWith('image/') ||
+  const handlePreviewOnline = () => {
+    if (!fileId) return;
+    window.open(file?.previewLink || api.getPreviewUrl(fileId), '_blank');
+  };
+
+  const isMediaViewable =
+    file?.mimeType?.startsWith('image/') ||
     file?.mimeType?.startsWith('video/') ||
     file?.mimeType?.startsWith('audio/') ||
-    file?.mimeType?.includes('pdf');
+    file?.mimeType?.startsWith('text/') ||
+    file?.mimeType?.includes('pdf') ||
+    file?.mimeType?.includes('json') ||
+    file?.originalName?.endsWith('.txt') ||
+    file?.originalName?.endsWith('.json') ||
+    file?.originalName?.endsWith('.csv') ||
+    file?.originalName?.endsWith('.log') ||
+    file?.originalName?.endsWith('.md') ||
+    file?.originalName?.endsWith('.pdf') ||
+    file?.originalName?.endsWith('.png') ||
+    file?.originalName?.endsWith('.jpg') ||
+    file?.originalName?.endsWith('.jpeg');
 
   return (
     <div className="max-w-xl mx-auto py-6 sm:py-12">
@@ -143,7 +148,7 @@ export const DownloadPage: React.FC = () => {
           <Loader2 size={36} className="animate-spin text-blue-500 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-white mb-1">Verifying File Transfer</h2>
           <p className="text-xs text-slate-400">
-            Connecting to CloudDrop engine and verifying S3 storage checksum...
+            Connecting to CloudDrop and preparing your secure download...
           </p>
         </div>
       ) : errorMessage ? (
@@ -215,10 +220,10 @@ export const DownloadPage: React.FC = () => {
             </div>
 
             <div className="p-3 rounded-lg bg-slate-800/40 border border-slate-800 flex items-center gap-2.5 text-xs">
-              <HardDrive size={18} className="text-blue-400 shrink-0" />
+              <ShieldCheck size={18} className="text-blue-400 shrink-0" />
               <div>
-                <div className="text-slate-400 text-[11px]">Storage Provider</div>
-                <div className="text-slate-200 font-medium">Amazon S3 (Encrypted)</div>
+                <div className="text-slate-400 text-[11px]">Security Level</div>
+                <div className="text-slate-200 font-medium">256-Bit Encrypted Cloud</div>
               </div>
             </div>
           </div>
@@ -245,16 +250,14 @@ export const DownloadPage: React.FC = () => {
 
             <div className="grid grid-cols-2 gap-3">
               {isMediaViewable && (
-                <a
-                  href={api.getPreviewUrl(file.fileId)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={handlePreviewOnline}
                   className="inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-medium transition-colors"
                 >
                   <Eye size={15} />
                   <span>Preview Online</span>
                   <ExternalLink size={12} className="text-slate-400" />
-                </a>
+                </button>
               )}
 
               <button

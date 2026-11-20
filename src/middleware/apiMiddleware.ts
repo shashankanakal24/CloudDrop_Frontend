@@ -10,6 +10,16 @@ export function requestMiddleware(config: InternalAxiosRequestConfig): InternalA
   // Attach metadata for performance measurement
   (config as any).metadata = { startTime: performance.now() };
 
+  // Attach persistent anonymous client ID for privacy isolation
+  if (typeof window !== 'undefined') {
+    let clientId = localStorage.getItem('clouddrop_client_id');
+    if (!clientId) {
+      clientId = crypto.randomUUID();
+      localStorage.setItem('clouddrop_client_id', clientId);
+    }
+    config.headers.set('X-Client-Id', clientId);
+  }
+
   if (import.meta.env.DEV) {
     console.debug(`[API Request] ${config.method?.toUpperCase()} ${config.url}`);
   }

@@ -33,14 +33,12 @@ export const FileList: React.FC<FileListProps> = ({ files, isLoading, onRefresh 
 
   // 1. Direct Download using backend /d/:fileId
   const handleDownload = (fileId: string) => {
-    const downloadUrl = api.getDirectDownloadUrl(fileId);
-    window.open(downloadUrl, '_blank');
+    window.open(api.getDirectDownloadUrl(fileId), '_blank');
   };
 
   // 2. Direct Preview using backend /f/:fileId
   const handlePreview = (fileId: string) => {
-    const previewUrl = api.getPreviewUrl(fileId);
-    window.open(previewUrl, '_blank');
+    window.open(api.getPreviewUrl(fileId), '_blank');
   };
 
   // 3. Share clean frontend recipient link (/download/:fileId)
@@ -56,9 +54,9 @@ export const FileList: React.FC<FileListProps> = ({ files, isLoading, onRefresh 
     }
   };
 
-  // 4. Permanently delete from both Amazon S3 and DynamoDB
+  // 4. Permanently delete file and revoke link
   const handleDelete = async (fileId: string, fileName: string) => {
-    if (!confirm(`Are you sure you want to permanently delete "${fileName}" from Amazon S3 and database?`)) {
+    if (!confirm(`Are you sure you want to permanently delete "${fileName}"? This sharing link will immediately stop working.`)) {
       return;
     }
     try {
@@ -206,12 +204,12 @@ export const FileList: React.FC<FileListProps> = ({ files, isLoading, onRefresh 
                           )}
                         </button>
 
-                        {/* 4. PERMANENT DELETE (S3 & DynamoDB) */}
+                        {/* 4. PERMANENT DELETE & REVOKE */}
                         <button
                           onClick={() => handleDelete(file.fileId, file.originalName)}
                           disabled={deletingId === file.fileId}
                           className="p-1.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 border border-rose-500/30 rounded-lg transition-colors disabled:opacity-50"
-                          title="Permanently delete from Amazon S3 and database"
+                          title="Permanently delete file and revoke sharing link"
                         >
                           <Trash2 size={13} />
                         </button>

@@ -1,14 +1,19 @@
 export interface FileRecord {
   fileId: string;
   originalName: string;
+  uploaderId?: string;
   s3Key: string;
   mimeType: string;
   sizeBytes: number;
-  status: 'PENDING' | 'PROCESSING' | 'READY' | 'EXPIRED';
+  status: 'PENDING' | 'PROCESSING' | 'READY' | 'EXPIRED' | 'DELETED';
   uploadedAt: string;
+  updatedAt?: string;
   expiresAt: number; // Unix epoch seconds
   downloadCount: number;
   tags?: string[];
+  downloadLink?: string;
+  previewLink?: string;
+  shareLink?: string;
   processedMetadata?: {
     md5Checksum?: string;
     previewGenerated?: boolean;
@@ -27,6 +32,7 @@ export interface DirectUploadResponse {
   message: string;
   downloadLink: string;
   previewLink: string;
+  shareLink?: string;
   fileId: string;
   originalName: string;
   sizeBytes: number;

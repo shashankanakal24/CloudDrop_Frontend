@@ -1,8 +1,6 @@
 import axios from 'axios';
 import {
   FileRecord,
-  UploadSessionResponse,
-  DownloadUrlResponse,
   DirectUploadResponse,
   HealthResponse,
 } from '../types';
@@ -101,10 +99,10 @@ client.interceptors.response.use(responseSuccessMiddleware, responseErrorMiddlew
 
 export const api = {
   /**
-   * Health check endpoint: GET /api/health
+   * Health check endpoint: GET /health
    */
   async getHealth(): Promise<HealthResponse> {
-    const res = await client.get<HealthResponse>('/api/health');
+    const res = await client.get<HealthResponse>('/health');
     return res.data;
   },
 
@@ -117,10 +115,10 @@ export const api = {
   },
 
   /**
-   * List all stored files: GET /api/files
+   * List active stored files for this client: GET /api/files/active/files/list
    */
   async listFiles(): Promise<FileRecord[]> {
-    const res = await client.get<FileRecord[]>('/api/files');
+    const res = await client.get<FileRecord[]>('/api/files/active/files/list');
     return res.data;
   },
 
@@ -133,56 +131,8 @@ export const api = {
   },
 
   /**
-   * Request pre-signed S3 upload PUT URL: POST /api/files/upload-url
-   */
-  async requestUpload(
-    fileName: string,
-    mimeType: string,
-    sizeBytes: number,
-    expiryHours: number = 24,
-    tags: string[] = [],
-  ): Promise<UploadSessionResponse> {
-    const res = await client.post<UploadSessionResponse>('/api/files/upload-url', {
-      fileName,
-      mimeType,
-      sizeBytes,
-      expiryHours,
-      tags,
-    });
-    return res.data;
-  },
-
-  /**
-   * Direct high-speed PUT binary upload to S3 using the pre-signed URL
-   */
-  async uploadDirectToS3(
-    uploadUrl: string,
-    file: File,
-    onProgress?: (percent: number) => void,
-  ): Promise<void> {
-    await axios.put(uploadUrl, file, {
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-      },
-      onUploadProgress: (progressEvent) => {
-        if (progressEvent.total && onProgress) {
-          const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          onProgress(percent);
-        }
-      },
-    });
-  },
-
-  /**
-   * Confirm direct S3 upload completion: POST /api/files/:fileId/confirm
-   */
-  async confirmUpload(fileId: string): Promise<void> {
-    await client.post(`/api/files/${encodeURIComponent(fileId)}/confirm`, {});
-  },
-
-  /**
    * Direct multipart form upload: POST /api/files/upload
-   * (Allows immediate upload through backend reverse proxy to S3 with instant link generation)
+   * (Immediate 1-step upload: uploads to S3 and returns 24-hr download & share links)
    */
   async uploadMultipartDirect(
     file: File,
@@ -204,19 +154,6 @@ export const api = {
         }
       },
     });
-    return res.data;
-  },
-
-  /**
-   * Get secure pre-signed download URL: GET /api/files/:fileId/download-url
-   */
-  async getDownloadUrl(fileId: string, forceDownload = false): Promise<DownloadUrlResponse> {
-    const res = await client.get<DownloadUrlResponse>(
-      `/api/files/${encodeURIComponent(fileId)}/download-url`,
-      {
-        params: forceDownload ? { download: 'true' } : undefined,
-      },
-    );
     return res.data;
   },
 

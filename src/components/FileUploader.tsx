@@ -92,37 +92,17 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
       setStatusMessage(null);
       setLastUploaded(null);
 
-      let fileId = '';
       const originalName = file.name;
 
-      try {
-        // Attempt Direct S3 Pre-signed Upload
-        const session = await api.requestUpload(
-          file.name,
-          file.type || 'application/octet-stream',
-          file.size,
-          selectedExpiry.hours,
-          [],
-        );
+      // 1-step direct upload: sends file to backend, which uploads to S3 and returns 24-hr links
+      const res = await api.uploadMultipartDirect(file, selectedExpiry.hours, (progress) => {
+        setUploadProgress(progress);
+      });
 
-        await api.uploadDirectToS3(session.uploadUrl, file, (progress) => {
-          setUploadProgress(progress);
-        });
-
-        await api.confirmUpload(session.fileId);
-        fileId = session.fileId;
-      } catch (directErr) {
-        console.warn('Direct S3 upload fallback to multipart endpoint:', directErr);
-        // Fallback: multipart direct upload through backend reverse proxy
-        const res = await api.uploadMultipartDirect(file, selectedExpiry.hours, (progress) => {
-          setUploadProgress(progress);
-        });
-        fileId = res.fileId;
-      }
-
-      const previewUrl = api.getPreviewUrl(fileId);
-      const downloadUrl = api.getDirectDownloadUrl(fileId);
-      const shareUrl = api.getShareablePageUrl(fileId);
+      const fileId = res.fileId;
+      const downloadUrl = res.downloadLink || api.getDirectDownloadUrl(fileId);
+      const previewUrl = res.previewLink || downloadUrl;
+      const shareUrl = res.shareLink || api.getShareablePageUrl(fileId);
 
       setLastUploaded({
         fileId,
@@ -134,7 +114,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
 
       setStatusMessage({
         type: 'success',
-        text: `"${originalName}" uploaded and secured in Amazon S3!`,
+        text: `"${originalName}" is uploaded and ready to share!`,
       });
 
       setFile(null);
@@ -274,7 +254,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onUploadSuccess }) =
       {isUploading && (
         <div className="mt-5">
           <div className="flex justify-between mb-1.5 text-xs text-slate-400">
-            <span>Encrypting and uploading securely to S3...</span>
+            <span>Encrypting and uploading securely...</span>
             <span className="font-medium text-blue-400">{uploadProgress}%</span>
           </div>
           <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
